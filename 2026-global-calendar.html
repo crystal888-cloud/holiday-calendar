@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全球假期日历</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --jp-color: #E74C3C; --jp-bg: #FEF2F2;
+            --uk-color: #3498DB; --uk-bg: #EFF6FF;
+            --us-color: #27AE60; --us-bg: #F0FDF4;
+            --hk-color: #9B59B6; --hk-bg: #FAF5FF;
+            --weekend-bg: #F8F9FA;
+            --today-border: #F39C12;
+            --today-bg: #FEF9E7;
+            --text-primary: #2C3E50;
+            --text-secondary: #7F8C8D;
+            --border-color: #E8E8E8;
+            --card-bg: #FFFFFF;
+            --body-bg: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--body-bg);
+            min-height: 100vh;
+            color: var(--text-primary);
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header { text-align: center; padding: 40px 20px 20px; }
+        header h1 {
+            font-size: 2.8rem; font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+            margin-bottom: 12px; letter-spacing: 2px;
+        }
+        header .subtitle { font-size: 1.1rem; color: var(--text-secondary); font-weight: 400; }
+
+        .year-selector {
+            display: flex; justify-content: center; gap: 12px;
+            margin-bottom: 30px; flex-wrap: wrap;
+        }
+        .year-btn {
+            padding: 10px 28px; border: none; border-radius: 12px;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            background: var(--card-bg); color: var(--text-secondary);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            transition: all 0.3s ease;
+        }
+        .year-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+        .year-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .legend {
+            display: flex; justify-content: center; gap: 24px; flex-wrap: wrap;
+            margin-bottom: 40px; padding: 20px;
+            background: var(--card-bg); border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        }
+        .legend-item {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 0.95rem; cursor: pointer; padding: 8px 16px;
+            border-radius: 10px; transition: all 0.3s ease; user-select: none;
+        }
+        .legend-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .legend-item.disabled { opacity: 0.4; }
+        .legend-dot { width: 18px; height: 18px; border-radius: 6px; flex-shrink: 0; }
+        .legend-dot.jp { background: var(--jp-color); }
+        .legend-dot.uk { background: var(--uk-color); }
+        .legend-dot.us { background: var(--us-color); }
+        .legend-dot.hk { background: var(--hk-color); }
+
+        .calendar-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+            margin-bottom: 50px;
+        }
+        @media (max-width: 1100px) { .calendar-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 700px) { .calendar-grid { grid-template-columns: 1fr; } header h1 { font-size: 2rem; } }
+
+        .month-card {
+            background: var(--card-bg); border-radius: 20px; padding: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .month-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.12); }
+        .month-title { font-size: 1.4rem; font-weight: 700; text-align: center; margin-bottom: 18px; letter-spacing: 1px; }
+        .weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px; }
+        .weekday { text-align: center; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); padding: 6px 0; }
+        .weekday.sat, .weekday.sun { color: #C0392B; }
+        .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .day {
+            aspect-ratio: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; border-radius: 10px;
+            font-size: 0.85rem; font-weight: 500; position: relative;
+            cursor: default; transition: all 0.2s ease; min-height: 44px;
+        }
+        .day.empty { background: transparent; }
+        .day.weekend { background: var(--weekend-bg); }
+        .day.today { background: var(--today-bg); border: 2px solid var(--today-border); font-weight: 700; }
+        .day.holiday-jp { background: var(--jp-bg); color: var(--jp-color); font-weight: 700; }
+        .day.holiday-uk { background: var(--uk-bg); color: var(--uk-color); font-weight: 700; }
+        .day.holiday-us { background: var(--us-bg); color: var(--us-color); font-weight: 700; }
+        .day.holiday-hk { background: var(--hk-bg); color: var(--hk-color); font-weight: 700; }
+        .day .holiday-indicators { display: flex; gap: 2px; margin-top: 2px; flex-wrap: wrap; justify-content: center; }
+        .day .indicator { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+        .day .indicator.jp { background: var(--jp-color); }
+        .day .indicator.uk { background: var(--uk-color); }
+        .day .indicator.us { background: var(--us-color); }
+        .day .indicator.hk { background: var(--hk-color); }
+
+        .tooltip {
+            position: fixed; background: rgba(44, 62, 80, 0.95); color: white;
+            padding: 10px 16px; border-radius: 10px; font-size: 0.85rem;
+            white-space: nowrap; z-index: 1000; pointer-events: none;
+            opacity: 0; transition: opacity 0.2s ease;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        }
+        .tooltip.visible { opacity: 1; }
+
+        .holiday-list {
+            background: var(--card-bg); border-radius: 20px; padding: 32px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 40px;
+        }
+        .holiday-list h2 { font-size: 1.6rem; margin-bottom: 24px; text-align: center; }
+        .holiday-list-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 30px; }
+        @media (min-width: 1200px) { .holiday-list-grid { grid-template-columns: repeat(4, 1fr); } }
+        @media (max-width: 900px) { .holiday-list-grid { grid-template-columns: 1fr; } }
+        .country-section h3 {
+            font-size: 1.15rem; margin-bottom: 16px; padding-bottom: 10px;
+            border-bottom: 3px solid; display: flex; align-items: center; gap: 10px;
+        }
+        .country-section.jp h3 { border-color: var(--jp-color); color: var(--jp-color); }
+        .country-section.uk h3 { border-color: var(--uk-color); color: var(--uk-color); }
+        .country-section.us h3 { border-color: var(--us-color); color: var(--us-color); }
+        .country-section.hk h3 { border-color: var(--hk-color); color: var(--hk-color); }
+        .flag { font-size: 1.4rem; }
+        .holiday-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 0; border-bottom: 1px solid var(--border-color); transition: background 0.2s;
+        }
+        .holiday-item:last-child { border-bottom: none; }
+        .holiday-item:hover { background: rgba(0,0,0,0.02); border-radius: 6px; padding-left: 8px; padding-right: 8px; margin: 0 -8px; }
+        .holiday-date { font-weight: 600; font-size: 0.9rem; white-space: nowrap; min-width: 70px; }
+        .holiday-name { font-size: 0.88rem; color: var(--text-secondary); text-align: right; }
+
+        footer { text-align: center; padding: 20px; color: var(--text-secondary); font-size: 0.85rem; }
+        .fade-in { animation: fadeIn 0.6s ease forwards; opacity: 0; }
+        @keyframes fadeIn { to { opacity: 1; } }
+
+        .current-date-bar {
+            text-align: center; padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; border-radius: 12px;
+            margin: 0 auto 30px; max-width: 400px;
+            font-size: 0.95rem; font-weight: 500;
+            box-shadow: 0 4px 12px rgba(102,126,234,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>全球假期日历</h1>
+            <p class="subtitle">日本 · 英国 · 美国 · 香港 公共假期一览</p>
+        </header>
+
+        <div class="current-date-bar" id="currentDateBar">
+            今天是 <span id="todayText"></span>
+        </div>
+
+        <div class="year-selector" id="yearSelector">
+            <button class="year-btn" data-year="2025" onclick="switchYear(2025)">2025</button>
+            <button class="year-btn active" data-year="2026" onclick="switchYear(2026)">2026</button>
+            <button class="year-btn" data-year="2027" onclick="switchYear(2027)">2027</button>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item" data-country="jp" onclick="toggleCountry('jp')">
+                <div class="legend-dot jp"></div><span>日本 🇯🇵</span>
+            </div>
+            <div class="legend-item" data-country="uk" onclick="toggleCountry('uk')">
+                <div class="legend-dot uk"></div><span>英国 🇬🇧</span>
+            </div>
+            <div class="legend-item" data-country="us" onclick="toggleCountry('us')">
+                <div class="legend-dot us"></div><span>美国 🇺🇸</span>
+            </div>
+            <div class="legend-item" data-country="hk" onclick="toggleCountry('hk')">
+                <div class="legend-dot hk"></div><span>香港 🇭🇰</span>
+            </div>
+        </div>
+
+        <div class="calendar-grid" id="calendarGrid"></div>
+
+        <div class="holiday-list">
+            <h2 id="listTitle">2026年假期详细列表</h2>
+            <div class="holiday-list-grid" id="holidayList"></div>
+        </div>
+
+        <footer>
+            <p>数据更新于 <span id="footerYear">2026</span>年 | 当前日期：<span id="footerDate"></span></p>
+        </footer>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+<script>
+const holidaysData = {
+    2025: {
+        jp: {
+            name: '日本', flag: '🇯🇵', color: '#E74C3C',
+            items: [
+                {m:1,d:1,n:'元日 New Year\'s Day'},{m:1,d:13,n:'成人の日 Coming of Age Day'},
+                {m:2,d:11,n:'建国記念の日 National Foundation Day'},{m:2,d:23,n:'天皇誕生日 Emperor\'s Birthday'},
+                {m:2,d:24,n:'天皇誕生日振替 Substitute Holiday'},{m:3,d:20,n:'春分の日 Vernal Equinox Day'},
+                {m:4,d:29,n:'昭和の日 Showa Day'},{m:5,d:3,n:'憲法記念日 Constitution Memorial Day'},
+                {m:5,d:4,n:'みどりの日 Greenery Day'},{m:5,d:5,n:'こどもの日 Children\'s Day'},
+                {m:5,d:6,n:'みどりの日振替 Substitute Holiday'},{m:7,d:21,n:'海の日 Marine Day'},
+                {m:8,d:11,n:'山の日 Mountain Day'},{m:9,d:15,n:'敬老の日 Respect for the Aged Day'},
+                {m:9,d:23,n:'秋分の日 Autumnal Equinox Day'},{m:10,d:13,n:'スポーツの日 Sports Day'},
+                {m:11,d:3,n:'文化の日 Culture Day'},{m:11,d:23,n:'勤労感謝の日 Labour Thanksgiving Day'},
+                {m:11,d:24,n:'勤労感謝の日振替 Substitute Holiday'}
+            ]
+        },
+        uk: {
+            name: '英国', flag: '🇬🇧', color: '#3498DB',
+            items: [
+                {m:1,d:1,n:'New Year\'s Day'},{m:4,d:18,n:'Good Friday'},
+                {m:4,d:21,n:'Easter Monday'},{m:5,d:5,n:'Early May Bank Holiday'},
+                {m:5,d:26,n:'Spring Bank Holiday'},{m:8,d:25,n:'Summer Bank Holiday'},
+                {m:12,d:25,n:'Christmas Day'},{m:12,d:26,n:'Boxing Day'}
+            ]
+        },
+        us: {
+            name: '美国', flag: '🇺🇸', color: '#27AE60',
+            items: [
+                {m:1,d:1,n:'New Year\'s Day'},{m:1,d:20,n:'Martin Luther King Jr. Day'},
+                {m:2,d:17,n:'Presidents Day'},{m:5,d:26,n:'Memorial Day'},
+                {m:6,d:19,n:'Juneteenth'},{m:7,d:4,n:'Independence Day'},
+                {m:9,d:1,n:'Labor Day'},{m:10,d:13,n:'Columbus Day'},
+                {m:11,d:11,n:'Veterans Day'},{m:11,d:27,n:'Thanksgiving Day'},
+                {m:12,d:25,n:'Christmas Day'}
+            ]
+        },
+        hk: {
+            name: '香港', flag: '🇭🇰', color: '#9B59B6',
+            items: [
+                {m:1,d:1,n:'一月一日'},{m:1,d:29,n:'農曆年初一 Lunar New Year\'s Day'},
+                {m:1,d:30,n:'農曆年初二'},{m:1,d:31,n:'農曆年初三'},
+                {m:4,d:4,n:'清明節 Ching Ming Festival'},{m:4,d:18,n:'耶穌受難節 Good Friday'},
+                {m:4,d:19,n:'耶穌受難節翌日'},{m:4,d:21,n:'復活節星期一 Easter Monday'},
+                {m:5,d:1,n:'勞動節 Labour Day'},{m:5,d:5,n:'佛誕 Birthday of the Buddha'},
+                {m:5,d:31,n:'端午節 Tuen Ng Festival'},{m:7,d:1,n:'香港特別行政區成立紀念日 HKSAR Day'},
+                {m:10,d:1,n:'國慶日 National Day'},{m:10,d:7,n:'中秋節翌日 Mid-Autumn Festival'},
+                {m:10,d:29,n:'重陽節 Chung Yeung Festival'},{m:12,d:25,n:'聖誕節 Christmas Day'},
+                {m:12,d:26,n:'聖誕節後第一個周日'}
+            ]
+        }
+    },
+    2026: {
+        jp: {
+            name: '日本', flag: '🇯🇵', color: '#E74C3C',
+            items: [
+                {m:1,d:1,n:'元日 New Year\'s Day'},{m:1,d:12,n:'成人の日 Coming of Age Day'},
+                {m:2,d:11,n:'建国記念の日 National Foundation Day'},{m:2,d:23,n:'天皇誕生日 Emperor\'s Birthday'},
+                {m:3,d:20,n:'春分の日 Vernal Equinox Day'},{m:4,d:29,n:'昭和の日 Showa Day'},
+                {m:5,d:3,n:'憲法記念日 Constitution Memorial Day'},{m:5,d:4,n:'みどりの日 Greenery Day'},
+                {m:5,d:5,n:'こどもの日 Children\'s Day'},{m:5,d:6,n:'憲法記念日振替 Substitute Holiday'},
+                {m:7,d:20,n:'海の日 Marine Day'},{m:8,d:11,n:'山の日 Mountain Day'},
+                {m:9,d:21,n:'敬老の日 Respect for the Aged Day'},{m:9,d:23,n:'秋分の日 Autumnal Equinox Day'},
+                {m:10,d:12,n:'スポーツの日 Sports Day'},{m:11,d:3,n:'文化の日 Culture Day'},
+                {m:11,d:23,n:'勤労感謝の日 Labour Thanksgiving Day'}
+            ]
+        },
+        uk: {
+            name: '英国', flag: '🇬🇧', color: '#3498DB',
+            items: [
+                {m:1,d:1,n:'New Year\'s Day'},{m:4,d:3,n:'Good Friday'},
+                {m:4,d:6,n:'Easter Monday'},{m:5,d:4,n:'Early May Bank Holiday'},
+                {m:5,d:25,n:'Spring Bank Holiday'},{m:8,d:31,n:'Summer Bank Holiday'},
+                {m:12,d:25,n:'Christmas Day'},{m:12,d:28,n:'Boxing Day (Substitute)'}
+            ]
+        },
+        us: {
+            name: '美国', flag: '🇺🇸', color: '#27AE60',
+            items: [
+                {m:1,d:1,n:'New Year\'s Day'},{m:1,d:19,n:'Martin Luther King Jr. Day'},
+                {m:2,d:16,n:'Presidents Day'},{m:5,d:25,n:'Memorial Day'},
+                {m:6,d:19,n:'Juneteenth'},{m:7,d:3,n:'Independence Day (Observed)'},
+                {m:9,d:7,n:'Labor Day'},{m:10,d:12,n:'Columbus Day'},
+                {m:11,d:11,n:'Veterans Day'},{m:11,d:26,n:'Thanksgiving Day'},
+                {m:12,d:25,n:'Christmas Day'}
+            ]
+        },
+        hk: {
+            name: '香港', flag: '🇭🇰', color: '#9B59B6',
+            items: [
+                {m:1,d:1,n:'一月一日'},{m:2,d:17,n:'農曆年初一 Lunar New Year\'s Day'},
+                {m:2,d:18,n:'農曆年初二'},{m:2,d:19,n:'農曆年初三'},
+                {m:4,d:3,n:'耶穌受難節 Good Friday'},{m:4,d:4,n:'耶穌受難節翌日'},
+                {m:4,d:6,n:'清明節翌日 Ching Ming (Observed)'},{m:4,d:7,n:'復活節星期一翌日 Easter Mon (Observed)'},
+                {m:5,d:1,n:'勞動節 Labour Day'},{m:5,d:25,n:'佛誕翌日 Buddha (Observed)'},
+                {m:6,d:19,n:'端午節 Tuen Ng Festival'},{m:7,d:1,n:'香港特別行政區成立紀念日 HKSAR Day'},
+                {m:9,d:26,n:'中秋節翌日 Mid-Autumn Festival'},{m:10,d:1,n:'國慶日 National Day'},
+                {m:10,d:19,n:'重陽節翌日 Chung Yeung (Observed)'},{m:12,d:25,n:'聖誕節 Christmas Day'},
+                {m:12,d:26,n:'聖誕節後第一個周日'}
+            ]
+        }
+    },
+    2027: {
+        jp: {
+            name: '日本', flag: '🇯🇵', color: '#E74C3C',
+            items: [
+                {m:1,d:1,n:'元日 New Year\'s Day'},{m:1,d:11,n:'成人の日 Coming of Age Day'},
+                {m:2,d:11,n:'建国記念の日 National Foundation Day'},{m:2,d:23,n:'天皇誕生日 Emperor\'s Birthday'},
+                {m:3,d:20,n:'春分の日 Vernal Equinox Day'},{m:3,d:21,n:'春分の日振替 Substitute Holiday'},
+                {m:4,d:29,n:'昭和の日 Showa Day'},{m:5,d:3,n:'憲法記念日 Constitution Memorial Day'},
+                {m:5,d:4,n:'みどりの日 Greenery Day'},{m:5,d:5,n:'こどもの日 Children\'s Day'},
+                {m:7,d:19,n:'海の日 Marine Day'},{m:8,d:11,n:'山の日 Mountain Day'},
+                {m:9,d:20,n:'敬老の日 Respect for the Aged Day'},{m:9,d:23,n:'秋分の日 Autumnal Equinox Day'},
+                {m:10,d:11,n:'スポーツの日 Sports Day'},{m:11,d:3,n:'文化の日 Culture Day'},
+                {m:11,d:23,n:'勤労感謝の日 Labour Thanksgiving Day'}
+            ]
+        },
+        uk: {
+            name: '英国', flag: '🇬🇧', color: '#3498DB',
+            items: [
+                {m:1,d:1,n:'New Year\'s Day'},{m:3,d:26,n:'Good Friday'},
+                {m:3,d:29,n:'Easter Monday'},{m:5,d:3,n:'Early May Bank Holiday'},
+                {m:5,d:31,n:'Spring Bank Holiday'},{m:8,d:30,n:'Summer Bank Holiday'},
+                {m:12,d:27,n:'Christmas Day (Substitute)'},{m:12,d:28,n:'Boxing Day (Substitute)'}
+            ]
+        },
+        us: {
+            name: '美国', flag: '🇺🇸', color: '#27AE60',
+            items: [
+                {m:1,d:1,n:'New Year\'s Day'},{m:1,d:18,n:'Martin Luther King Jr. Day'},
+                {m:2,d:15,n:'Presidents Day'},{m:5,d:31,n:'Memorial Day'},
+                {m:6,d:18,n:'Juneteenth (Observed)'},{m:7,d:5,n:'Independence Day (Observed)'},
+                {m:9,d:6,n:'Labor Day'},{m:10,d:11,n:'Columbus Day'},
+                {m:11,d:11,n:'Veterans Day'},{m:11,d:25,n:'Thanksgiving Day'},
+                {m:12,d:24,n:'Christmas Day (Observed)'}
+            ]
+        },
+        hk: {
+            name: '香港', flag: '🇭🇰', color: '#9B59B6',
+            items: [
+                {m:1,d:1,n:'一月一日'},{m:2,d:6,n:'農曆年初一 Lunar New Year\'s Day'},
+                {m:2,d:7,n:'農曆年初二'},{m:2,d:8,n:'農曆年初三'},
+                {m:4,d:2,n:'耶穌受難節 Good Friday'},{m:4,d:3,n:'耶穌受難節翌日'},
+                {m:4,d:5,n:'清明節 Ching Ming Festival'},{m:4,d:6,n:'復活節星期一 Easter Monday'},
+                {m:5,d:1,n:'勞動節 Labour Day'},{m:5,d:24,n:'佛誕 Birthday of the Buddha'},
+                {m:5,d:31,n:'端午節 Tuen Ng Festival'},{m:7,d:1,n:'香港特別行政區成立紀念日 HKSAR Day'},
+                {m:9,d:22,n:'中秋節翌日 Mid-Autumn Festival'},{m:10,d:1,n:'國慶日 National Day'},
+                {m:10,d:11,n:'重陽節 Chung Yeung Festival'},{m:12,d:25,n:'聖誕節 Christmas Day'},
+                {m:12,d:27,n:'聖誕節後第一個周日'}
+            ]
+        }
+    }
+};
+
+const weekdayNames = ['一','二','三','四','五','六','日'];
+let currentYear = 2026;
+const visibleCountries = { jp: true, uk: true, us: true, hk: true };
+const today = new Date();
+
+function formatDate(d) {
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function updateTodayDisplay() {
+    document.getElementById('todayText').textContent = formatDate(today);
+    document.getElementById('footerDate').textContent = formatDate(today);
+}
+
+function getHolidayInfo(year, month, day) {
+    const data = holidaysData[year];
+    if (!data) return [];
+    const info = [];
+    for (const [country, cdata] of Object.entries(data)) {
+        if (!visibleCountries[country]) continue;
+        const found = cdata.items.find(h => h.m === month && h.d === day);
+        if (found) info.push({ country, ...found });
+    }
+    return info;
+}
+
+function createCalendar(year) {
+    const grid = document.getElementById('calendarGrid');
+    grid.innerHTML = '';
+    for (let m = 1; m <= 12; m++) {
+        const card = document.createElement('div');
+        card.className = 'month-card fade-in';
+        card.style.animationDelay = `${m * 0.04}s`;
+        const firstDay = new Date(year, m - 1, 1).getDay();
+        const daysInMonth = new Date(year, m, 0).getDate();
+        const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+
+        let weekdaysHtml = '<div class="weekdays">';
+        weekdayNames.forEach((d, i) => {
+            const cls = i >= 5 ? 'weekday ' + (i === 5 ? 'sat' : 'sun') : 'weekday';
+            weekdaysHtml += `<div class="${cls}">${d}</div>`;
+        });
+        weekdaysHtml += '</div>';
+
+        let daysHtml = '<div class="days">';
+        for (let i = 0; i < startOffset; i++) daysHtml += '<div class="day empty"></div>';
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const date = new Date(year, m - 1, d);
+            const dayOfWeek = date.getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            const isToday = (year === today.getFullYear() && m === today.getMonth()+1 && d === today.getDate());
+            const holidayInfo = getHolidayInfo(year, m, d);
+
+            let classes = ['day'];
+            if (isWeekend) classes.push('weekend');
+            if (isToday) classes.push('today');
+
+            let indicators = '';
+            if (holidayInfo.length > 0) {
+                holidayInfo.forEach(h => classes.push(`holiday-${h.country}`));
+                indicators = '<div class="holiday-indicators">' +
+                    holidayInfo.map(h => `<div class="indicator ${h.country}"></div>`).join('') + '</div>';
+            }
+
+            const tooltipText = holidayInfo.map(h => `${holidaysData[year][h.country].flag} ${h.n}`).join('\n');
+            daysHtml += `<div class="${classes.join(' ')}" data-tooltip="${tooltipText.replace(/"/g, '&quot;')}">${d}${indicators}</div>`;
+        }
+        daysHtml += '</div>';
+
+        card.innerHTML = `<div class="month-title">${m}月</div>${weekdaysHtml}${daysHtml}`;
+        grid.appendChild(card);
+    }
+    attachTooltipEvents();
+}
+
+function attachTooltipEvents() {
+    const tooltip = document.getElementById('tooltip');
+    document.querySelectorAll('.day[data-tooltip]').forEach(el => {
+        el.addEventListener('mouseenter', () => {
+            const text = el.getAttribute('data-tooltip');
+            if (!text) return;
+            tooltip.innerHTML = text.replace(/\n/g, '<br>');
+            tooltip.classList.add('visible');
+        });
+        el.addEventListener('mousemove', (e) => {
+            tooltip.style.left = (e.clientX + 12) + 'px';
+            tooltip.style.top = (e.clientY - 10) + 'px';
+        });
+        el.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
+    });
+}
+
+function createHolidayList(year) {
+    const container = document.getElementById('holidayList');
+    container.innerHTML = '';
+    const data = holidaysData[year];
+    if (!data) return;
+    for (const [code, cdata] of Object.entries(data)) {
+        if (!visibleCountries[code]) continue;
+        const section = document.createElement('div');
+        section.className = `country-section ${code}`;
+        let itemsHtml = '';
+        cdata.items.forEach(h => {
+            itemsHtml += `<div class="holiday-item"><span class="holiday-date">${h.m}月${h.d}日</span><span class="holiday-name">${h.n}</span></div>`;
+        });
+        section.innerHTML = `<h3><span class="flag">${cdata.flag}</span>${cdata.name}</h3>${itemsHtml}`;
+        container.appendChild(section);
+    }
+}
+
+function switchYear(year) {
+    currentYear = year;
+    document.querySelectorAll('.year-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.year) === year);
+    });
+    document.getElementById('listTitle').textContent = `${year}年假期详细列表`;
+    document.getElementById('footerYear').textContent = year;
+    createCalendar(year);
+    createHolidayList(year);
+}
+
+function toggleCountry(country) {
+    visibleCountries[country] = !visibleCountries[country];
+    document.querySelector(`.legend-item[data-country="${country}"]`).classList.toggle('disabled', !visibleCountries[country]);
+    createCalendar(currentYear);
+    createHolidayList(currentYear);
+}
+
+updateTodayDisplay();
+switchYear(2026);
+</script>
+</body>
+</html>
